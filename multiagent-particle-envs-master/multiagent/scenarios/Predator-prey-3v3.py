@@ -8,7 +8,7 @@ class Scenario(BaseScenario):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 1
+        num_good_agents = 3
         num_adversaries = 3
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 2
@@ -89,7 +89,7 @@ class Scenario(BaseScenario):
     def agent_reward(self, agent, world):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
-        shape = True
+        shape = False
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -115,7 +115,7 @@ class Scenario(BaseScenario):
     def adversary_reward(self, agent, world):
         # Adversaries are rewarded for collisions with agents
         rew = 0
-        shape = True
+        shape = False
         agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
@@ -145,3 +145,15 @@ class Scenario(BaseScenario):
             if not other.adversary:
                 other_vel.append(other.state.p_vel)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+
+    def observation_old(self, agent, world):
+        info = []
+        info.append(np.concatenate([agent.state.p_vel] + [agent.state.p_pos]))
+        info_other_group = []
+        for other in world.agents:
+            if other is agent: continue
+            if other.adversary == agent.adversary:
+                info.append(np.concatenate([other.state.p_vel] + [other.state.p_pos]))
+            else:
+                info_other_group.append(np.concatenate([other.state.p_vel] + [other.state.p_pos]))
+        return np.asarray(info+info_other_group)

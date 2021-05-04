@@ -55,6 +55,11 @@ class Landmark(Entity):
      def __init__(self):
         super(Landmark, self).__init__()
 
+# properties of landmark entities
+class Wall(Entity):
+     def __init__(self):
+        super(Wall, self).__init__()
+
 # properties of agent entities
 class Agent(Entity):
     def __init__(self):
@@ -81,9 +86,11 @@ class Agent(Entity):
 # multi-agent world
 class World(object):
     def __init__(self):
+        self.graph_obs = False
         # list of agents and entities (can change at execution-time!)
         self.agents = []
         self.landmarks = []
+        self.walls = []
         # communication channel dimensionality
         self.dim_c = 0
         # position dimensionality
@@ -101,7 +108,7 @@ class World(object):
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks
+        return self.agents + self.landmarks + self.walls
 
     # return all agents controllable by external policies
     @property
@@ -133,7 +140,7 @@ class World(object):
     # gather agent action forces
     def apply_action_force(self, p_force):
         # set applied forces
-        for i,agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
                 p_force[i] = agent.action.u + noise                
@@ -142,8 +149,8 @@ class World(object):
     # gather physical forces acting on entities
     def apply_environment_force(self, p_force):
         # simple (but inefficient) collision response
-        for a,entity_a in enumerate(self.entities):
-            for b,entity_b in enumerate(self.entities):
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
                 if(b <= a): continue
                 [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
                 if(f_a is not None):
@@ -156,7 +163,7 @@ class World(object):
 
     # integrate physical state
     def integrate_state(self, p_force):
-        for i,entity in enumerate(self.entities):
+        for i, entity in enumerate(self.entities):
             if not entity.movable: continue
             entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
             if (p_force[i] is not None):
@@ -183,10 +190,20 @@ class World(object):
         if (entity_a is entity_b):
             return [None, None] # don't collide against itself
         # compute actual distance between entities
-        delta_pos = entity_a.state.p_pos - entity_b.state.p_pos
+        if isinstance(entity_a, Agent) and isinstance(entity_b, Wall):
+            delta_pos = entity_a.state.p_pos - entity_b.state.p_pos
+            if entity_b.state.p_pos[0] == 0:
+                delta_pos[0] = 0
+            elif entity_b.state.p_pos[1] == 0:
+                delta_pos[1] = 0
+            # minimum allowable distance
+            dist_min = entity_a.size + 0.15
+        else:
+            delta_pos = entity_a.state.p_pos - entity_b.state.p_pos
+            # minimum allowable distance
+            dist_min = entity_a.size + entity_b.size
         dist = np.sqrt(np.sum(np.square(delta_pos)))
-        # minimum allowable distance
-        dist_min = entity_a.size + entity_b.size
+
         # softmax penetration
         k = self.contact_margin
         penetration = np.logaddexp(0, -(dist - dist_min)/k)*k

@@ -1,17 +1,19 @@
 import numpy as np
-from multiagent.core import World, Agent, Landmark
+from multiagent.core import World, Agent, Landmark, Wall
 from multiagent.scenario import BaseScenario
 
 
 class Scenario(BaseScenario):
-    def make_world(self):
+    def make_world(self, graph_obs=False):
         world = World()
+        world.graph_obs = graph_obs
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 1
-        num_adversaries = 3
+        num_good_agents = 4
+        num_adversaries = 4
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 2
+        num_walls = 0
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
@@ -31,6 +33,20 @@ class Scenario(BaseScenario):
             landmark.movable = False
             landmark.size = 0.2
             landmark.boundary = False
+
+        world.walls = [Wall() for i in range(num_walls)]
+        for i, wall in enumerate(world.walls):
+            wall.name = 'wall %d' % i
+            wall.collide = True
+            wall.movable = False
+            wall.size = 0.0
+            wall.boundary = False
+        if num_walls != 0:
+            world.walls[0].state.p_pos = np.asarray([1, 0])
+            world.walls[1].state.p_pos = np.asarray([0, 1])
+            world.walls[2].state.p_pos = np.asarray([-1, 0])
+            world.walls[3].state.p_pos = np.asarray([0, -1])
+
         # make initial conditions
         self.reset_world(world)
         return world
@@ -86,10 +102,17 @@ class Scenario(BaseScenario):
         main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
         return main_reward
 
+    def bound(self, x):
+        if x < 0.9:
+            return 0
+        if x < 1.0:
+            return (x - 0.9) * 10
+        return min(np.exp(2 * x - 2), 10)
+
     def agent_reward(self, agent, world):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
-        shape = True
+        shape = False
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -100,22 +123,16 @@ class Scenario(BaseScenario):
                     rew -= 10
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
-        def bound(x):
-            if x < 0.9:
-                return 0
-            if x < 1.0:
-                return (x - 0.9) * 10
-            return min(np.exp(2 * x - 2), 10)
         for p in range(world.dim_p):
             x = abs(agent.state.p_pos[p])
-            rew -= bound(x)
+            rew -= self.bound(x)
 
         return rew
 
     def adversary_reward(self, agent, world):
         # Adversaries are rewarded for collisions with agents
         rew = 0
-        shape = True
+        shape = False
         agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
@@ -123,9 +140,8 @@ class Scenario(BaseScenario):
                 rew -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
         if agent.collide:
             for ag in agents:
-                for adv in adversaries:
-                    if self.is_collision(ag, adv):
-                        rew += 10
+                if self.is_collision(ag, agent):
+                    rew += 10
         return rew
 
     def observation(self, agent, world):
@@ -142,6 +158,46 @@ class Scenario(BaseScenario):
             if other is agent: continue
             comm.append(other.state.c)
             other_pos.append(other.state.p_pos - agent.state.p_pos)
-            if not other.adversary:
-                other_vel.append(other.state.p_vel)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+            #if not other.adversary:
+            other_vel.append(other.state.p_vel)
+
+        obs_info = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+        if world.graph_obs:
+            relation_graph = self.get_relation_graph(agent, world)
+            return [obs_info, relation_graph]
+        else:
+            return obs_info
+
+    def get_relation_graph(self, agent, world):
+        # relation graph通过list来表示，list中的值为agent的index，主要分为三层:
+        # 第一层为当前agent的index
+        # 第二层为，每个agent类别中，与当前agent最近的agent的index
+        # 第三层为，与第二层中agent属于同一类别的agent的index
+        relation_graph = [[], [], []]
+        agents = world.agents
+
+        distance_and_index = [[[], []], [[], []]]
+        for index, other in enumerate(agents):
+            if other is agent:
+                relation_graph[0].append(index)
+                continue
+            distance = np.sum(np.square(other.state.p_pos - agent.state.p_pos))
+            if other.adversary == agent.adversary:
+                distance_and_index[0][0].append(distance)
+                distance_and_index[0][1].append(index)
+            else:
+                distance_and_index[1][0].append(distance)
+                distance_and_index[1][1].append(index)
+
+        for d_a_i in distance_and_index:
+            agent_indexs = []
+            index = d_a_i[0].index(min(d_a_i[0]))
+            for i, agent_index in enumerate(d_a_i[1]):
+                if i == index:
+                    relation_graph[1].append(agent_index)
+                else:
+                    #agent_indexs.append(agent_index)
+                    relation_graph[2].append(agent_index)
+            #relation_graph[2].append(agent_indexs)
+
+        return relation_graph
