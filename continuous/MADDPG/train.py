@@ -1,20 +1,15 @@
-import sys
-import os
-import argparse
 import numpy as np
 import tensorflow as tf
 import time
-import pickle
-import datetime
-from MADDPG.maddpg import MADDPGAgent
+from continuous.MADDPG.maddpg import MADDPGAgent
 from make_env import make_env
 
 train_parameters = {
     "max-episode-len": 25,
-    "num-episodes": 1000,
+    "num-episodes": 100000,
     }
 model_parameters = {
-    "buffer_size": 1000,
+    "buffer_size": 100000,
     "lr_actor": 1.0e-2,
     "lr_critic": 1.0e-2,
     "sigma": 0.15,
@@ -126,7 +121,7 @@ def train():
 
 def inference(episode_num=100, max_episode_steps=100):
     # 初始化环境
-    env = make_env(scenario_name="Predator_prey_3v3")
+    env = make_env(scenario_name="Predator_prey_4v4")
 
     # 初始化MADDPGAgent
     maddpgagents = [MADDPGAgent(name="agent" + str(i),
@@ -151,16 +146,16 @@ def inference(episode_num=100, max_episode_steps=100):
             # print(action_n)
             # environment step
             next_state, reward, done, _ = env.step(action_n)
-            # env.render()
+            env.render()
             time.sleep(0.03)
             cur_state = next_state
             rewards += np.asarray(reward, dtype=np.float32)
             step += 1
         episode += 1
         print("episode {}: {} total reward, {} steps".format(episode, rewards, step))
-    # env.close()
+    env.close()
 
 
 if __name__ == '__main__':
-    # train()
+    train()
     inference()

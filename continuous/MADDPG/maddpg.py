@@ -1,13 +1,11 @@
-import random
 import datetime
 import numpy as np
-from collections import deque
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Lambda, Concatenate
+from tensorflow.keras.layers import Input, Dense, Concatenate
 from tensorflow.keras.optimizers import Adam
 import time
-from MADDPG.replay_buffer import ReplayBuffer
+from continuous.MADDPG.replay_buffer import ReplayBuffer
 
 tf.keras.backend.set_floatx('float32')
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
@@ -36,6 +34,7 @@ def critic(state_shapes, action_dims, agent_num):
     x = Dense(128, activation='relu')(concat)
     x = Dense(64, activation='relu')(x)
     output = Dense(1)(x)
+
     model = Model(inputs=inputs, outputs=output)
     return model
 
@@ -164,6 +163,7 @@ class MADDPGAgent():
         obs_n, act_n, rew_n, obs_next_n, done_n, act_next_n = memories
         with tf.GradientTape() as tape:
             # compute Q_target
+            # print(len(obs_next_n), len(act_next_n))
             q_target = self.critic_target(obs_next_n+act_next_n)
             dc_r = rew_n[self.agent_index] + self.parameters['gamma'] * q_target * (1 - done_n[self.agent_index])
             # compute Q
