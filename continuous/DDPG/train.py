@@ -1,12 +1,7 @@
-import sys
-import os
-import argparse
 import numpy as np
 import tensorflow as tf
 import time
-import pickle
-import datetime
-from DDPG.ddpg import DDPGAgent
+from continuous.DDPG.ddpg import DDPGAgent
 from make_env import make_env
 
 train_parameters = {

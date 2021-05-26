@@ -1,13 +1,11 @@
-import random
 import datetime
 import numpy as np
-from collections import deque
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Lambda, Concatenate
+from tensorflow.keras.layers import Input, Dense, Concatenate
 from tensorflow.keras.optimizers import Adam
 import time
-from DDPG.replay_buffer import ReplayBuffer
+from continuous.DDPG.replay_buffer import ReplayBuffer
 
 tf.keras.backend.set_floatx('float32')
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
