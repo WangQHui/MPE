@@ -101,7 +101,7 @@ def runner(env, args):
         if args.display:
             for env_show in env.envs:
                 env_show.render('human')
-                #env_show.render()
+
 
         # Using the RolloutWork to interact with the environment (rollout the episodes >= 1)
         episodes, rews, mean_rews = [], [], []
